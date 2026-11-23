@@ -1,6 +1,6 @@
 # Proyecto Final – React + Django
 
-## Backend (Django + DRF)
+## Backend
 ```bash
 cd backend
 python -m venv venv
@@ -11,7 +11,7 @@ python manage.py createsuperuser
 python manage.py runserver         
 ```
 
-## Frontend (React)
+## Frontend
 ```bash
 cd frontend
 npm install
