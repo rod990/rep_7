@@ -1,25 +1,20 @@
-# MiMusica – Proyecto Final (React + Django REST Framework + SQLite)
+# MiMusica – Proyecto Final 
 
-Aplicación web para administrar un catálogo de canciones. El frontend (React + Vite)
-se comunica con el backend (Django + DRF) mediante una API REST con autenticación por token.
-
-## Requisitos
-- Python 3.10 o superior
-- Node.js 20.19+ o 22.12+ (requerido por Vite 8)
+Aplicación web para administrar un catálogo de canciones.
 
 ## 1. Backend (Django) – http://127.0.0.1:8000
 ```bash
 cd backend
 python -m venv venv
-venv\Scripts\activate            # Windows
-# source venv/bin/activate       # macOS / Linux
+venv\Scripts\activate            
+# source venv/bin/activate       
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py crear_usuario   # crea el usuario de prueba rod / 123
+python manage.py crear_usuario   # crea el rod / 123
 python manage.py runserver
 ```
 
-## 2. Frontend (React) – http://localhost:5173
+## 2. Frontend  – http://localhost:5173
 En otra terminal:
 ```bash
 cd frontend
