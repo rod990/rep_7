@@ -2,7 +2,7 @@
 
 Aplicación web para administrar un catálogo de canciones.
 
-## 1. Backend (Django) – http://127.0.0.1:8000
+## 1. Backend – http://127.0.0.1:8000
 ```bash
 cd backend
 python -m venv venv
