@@ -1,16 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Login from './Login';
 import Canciones from './Canciones';
+import { apiFetch } from './api';
+
 function App() {
-  const [authToken, setAuthToken] = useState(null);
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) { setAuthToken(token); }
-  }, []);
-  const handleLogout = () => {
+  // Se lee el token al crear el estado: evita el "parpadeo" del login al recargar.
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('token'));
+
+  const limpiarSesion = () => {
     localStorage.removeItem('token');
     setAuthToken(null);
   };
+
+  // Cierre de sesion: avisa al backend (borra el token) y limpia el navegador.
+  const handleLogout = async () => {
+    try {
+      await apiFetch('/logout/', { method: 'POST', token: authToken });
+    } catch {
+      // si el backend no responde, igual se cierra la sesion localmente
+    }
+    limpiarSesion();
+  };
+
   if (!authToken) { return <Login setAuthToken={setAuthToken} />; }
   return (
     <div style={{ backgroundColor: '#000', minHeight: '100vh', color: '#fff', fontFamily: '"Times New Roman", Times, serif' }}>
@@ -23,7 +34,7 @@ function App() {
         </button>
       </nav>
       <main className="container my-5" style={{ maxWidth: '1100px' }}>
-        <Canciones token={authToken} />
+        <Canciones token={authToken} onSesionExpirada={limpiarSesion} />
       </main>
     </div>
   );
