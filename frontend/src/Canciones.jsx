@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiFetch, mensajeDeError } from './api';
+import Reproductor from './Reproductor';
 
 const FUENTE = '"Times New Roman", Times, serif';
 const FORM_VACIO = { titulo: '', artista: '', genero: '', anio_lanzamiento: '' };
@@ -16,9 +17,12 @@ export default function Canciones({ token, onSesionExpirada }) {
     const [guardando, setGuardando] = useState(false);
     const [errorForm, setErrorForm] = useState('');
 
-    // buscador iTunes (opcional)
+    // buscador (consulta nuestra API /api/buscar/, que consulta Deezer)
     const [busqueda, setBusqueda] = useState('');
     const [resultadosApi, setResultadosApi] = useState([]);
+
+    // canción que suena en el reproductor (null = reproductor cerrado)
+    const [pista, setPista] = useState(null);
 
     // 401 = token invalido/expirado -> volver al login. Otros errores -> mensaje.
     const manejarError = (err, mostrar) => {
@@ -90,34 +94,38 @@ export default function Canciones({ token, onSesionExpirada }) {
         try {
             await apiFetch(`/canciones/${id}/`, { method: 'DELETE', token });
             if (editandoId === id) cancelarEdicion();
+            if (pista?.id === id) setPista(null);
             await cargarCanciones();
         } catch (err) {
             manejarError(err, setError);
         }
     };
 
-    // ---------- Buscador iTunes (con espera de 300 ms) ----------
+    // ---------- Buscador (con espera de 300 ms) ----------
     useEffect(() => {
-        if (!busqueda.trim()) { setResultadosApi([]); return; }
+        const q = busqueda.trim();
+        if (q.length < 2) { setResultadosApi([]); return; }
         let cancelado = false;
         const timer = setTimeout(async () => {
             try {
-                const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(busqueda)}&entity=song&limit=5`);
-                const data = await res.json();
-                if (!cancelado) setResultadosApi(data.results || []);
-            } catch {
-                if (!cancelado) setError('No se pudo consultar el buscador de iTunes.');
+                const data = await apiFetch(`/buscar/?q=${encodeURIComponent(q)}`, { token });
+                if (!cancelado) setResultadosApi(data);
+            } catch (err) {
+                if (!cancelado) manejarError(err, setError);
             }
         }, 300);
         return () => { cancelado = true; clearTimeout(timer); };
-    }, [busqueda]);
+    }, [busqueda, token]);
 
+    // Guarda en nuestra base de datos el resultado de la búsqueda (incluye preview_url y portada).
     const importarDesdeApi = async (track) => {
         const nueva = {
-            titulo: track.trackName || 'Sin título',
-            artista: track.artistName || 'Desconocido',
-            genero: track.primaryGenreName || 'General',
-            anio_lanzamiento: track.releaseDate ? new Date(track.releaseDate).getFullYear() : 2024,
+            titulo: track.titulo,
+            artista: track.artista,
+            genero: track.genero,
+            anio_lanzamiento: track.anio_lanzamiento,
+            preview_url: track.preview_url,
+            portada: track.portada,
         };
         try {
             await apiFetch('/canciones/', { method: 'POST', token, body: nueva });
@@ -130,8 +138,11 @@ export default function Canciones({ token, onSesionExpirada }) {
         }
     };
 
+    // Solo canciones con fragmento de audio pueden sonar en el reproductor.
+    const reproducibles = canciones.filter((c) => c.preview_url);
+
     return (
-        <div className="py-2" style={{ color: '#fff', fontFamily: FUENTE, letterSpacing: '0.3px' }}>
+        <div className={`py-2 ${pista ? 'pb-5' : ''}`} style={{ color: '#fff', fontFamily: FUENTE, letterSpacing: '0.3px' }}>
             {error && <div className="alert alert-danger py-2 mb-4">{error}</div>}
 
             {/* Formulario crear / editar */}
@@ -167,7 +178,7 @@ export default function Canciones({ token, onSesionExpirada }) {
                 </form>
             </div>
 
-            {/* Buscador iTunes */}
+            {/* Buscador (Deezer, a través de nuestra API) */}
             <div className="p-4 mb-4 rounded border border-secondary" style={{ backgroundColor: '#0a0a0a' }}>
                 <h5 className="mb-3 text-uppercase fw-bold text-white" style={{ fontSize: '0.85rem', letterSpacing: '2px' }}>Buscador</h5>
                 <input type="text" className="form-control text-white border-secondary shadow-none" style={{ ...estiloInput, padding: '12px' }} placeholder="Escribe el nombre de una canción o artista..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
@@ -175,24 +186,23 @@ export default function Canciones({ token, onSesionExpirada }) {
                     <div className="table-responsive rounded border border-secondary mt-3" style={{ backgroundColor: '#000' }}>
                         <table className="table table-dark table-hover align-middle mb-0" style={{ backgroundColor: 'transparent' }}>
                             <tbody>
-                                {resultadosApi.map((item, index) => {
-                                    const qYt = encodeURIComponent(`${item.trackName} ${item.artistName}`);
-                                    const linkYt = `https://www.youtube.com/results?search_query=${qYt}`;
-                                    const linkApple = item.trackViewUrl || `https://music.apple.com/us/search?term=${qYt}`;
-                                    return (
-                                        <tr key={index} style={{ borderBottomColor: '#222' }}>
-                                            <td className="py-3">
-                                                <div className="fw-bold text-white" style={{ fontSize: '1.05rem' }}>{item.trackName}</div>
-                                                <div className="text-light opacity-75 small">{item.artistName}</div>
-                                            </td>
-                                            <td className="text-end py-3">
-                                                <a href={linkApple} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline-light me-2 border-secondary" style={{ fontSize: '0.8rem' }}>Apple Music</a>
-                                                <a href={linkYt} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline-danger me-2" style={{ fontSize: '0.8rem' }}>YouTube</a>
-                                                <button className="btn btn-sm btn-danger px-3 text-white fw-semibold" style={{ fontSize: '0.8rem' }} onClick={() => importarDesdeApi(item)}>Agregar</button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                {resultadosApi.map((item, index) => (
+                                    <tr key={index} style={{ borderBottomColor: '#222' }}>
+                                        <td className="py-3" style={{ width: '64px' }}>
+                                            {item.portada && <img src={item.portada} alt="" width="48" height="48" className="rounded" />}
+                                        </td>
+                                        <td className="py-3">
+                                            <div className="fw-bold text-white" style={{ fontSize: '1.05rem' }}>{item.titulo}</div>
+                                            <div className="text-light opacity-75 small">{item.artista} · {item.anio_lanzamiento} · {item.genero}</div>
+                                        </td>
+                                        <td className="text-end py-3">
+                                            {item.preview_url && (
+                                                <button className="btn btn-sm btn-outline-light me-2 border-secondary" style={{ fontSize: '0.8rem' }} onClick={() => setPista(item)}>▶ Escuchar</button>
+                                            )}
+                                            <button className="btn btn-sm btn-danger px-3 text-white fw-semibold" style={{ fontSize: '0.8rem' }} onClick={() => importarDesdeApi(item)}>Agregar</button>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -234,6 +244,9 @@ export default function Canciones({ token, onSesionExpirada }) {
                                             <a href={linkYt} target="_blank" rel="noreferrer" className="btn btn-sm btn-dark border-danger text-danger px-2 py-1" style={{ fontSize: '0.75rem' }}>YouTube</a>
                                         </td>
                                         <td className="text-center py-3 pe-3">
+                                            {c.preview_url && (
+                                                <button onClick={() => setPista(c)} className="btn btn-sm btn-outline-light px-3 py-1 me-2" style={{ fontSize: '0.75rem' }}>▶</button>
+                                            )}
                                             <button onClick={() => empezarEdicion(c)} className="btn btn-sm btn-outline-light px-3 py-1 me-2" style={{ fontSize: '0.75rem' }}>Editar</button>
                                             <button onClick={() => eliminarCancion(c.id)} className="btn btn-sm btn-outline-danger px-3 py-1 text-white" style={{ fontSize: '0.75rem' }}>Eliminar</button>
                                         </td>
@@ -244,6 +257,15 @@ export default function Canciones({ token, onSesionExpirada }) {
                     </tbody>
                 </table>
             </div>
+
+            {pista && (
+                <Reproductor
+                    pista={pista}
+                    lista={reproducibles}
+                    onCambiarPista={setPista}
+                    onCerrar={() => setPista(null)}
+                />
+            )}
         </div>
     );
 }
