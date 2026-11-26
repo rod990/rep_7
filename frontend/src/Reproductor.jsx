@@ -1,27 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-
 const formatoTiempo = (seg) => {
     if (!Number.isFinite(seg) || seg < 0) return '0:00';
     const m = Math.floor(seg / 60);
     const s = Math.floor(seg % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
 };
-
-// Reproductor fijo abajo. Recibe la pista actual y la lista de canciones reproducibles
-// (las que tienen preview_url) para pasar a la anterior / siguiente.
 export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) {
     const audioRef = useRef(null);
     const [sonando, setSonando] = useState(false);
     const [tiempo, setTiempo] = useState(0);
     const [duracion, setDuracion] = useState(0);
     const [error, setError] = useState('');
-
     const idx = lista.findIndex((c) => c.preview_url === pista.preview_url);
     const anterior = idx > 0 ? lista[idx - 1] : null;
     const siguiente = idx >= 0 && idx < lista.length - 1 ? lista[idx + 1] : null;
-
-    // Cada vez que cambia la pista: cargar el audio y reproducirlo.
-    // Si el navegador bloquea el autoplay, el usuario presiona ▶.
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -30,7 +22,6 @@ export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) 
         audio.src = pista.preview_url;
         audio.play().catch(() => setSonando(false));
     }, [pista.preview_url]);
-
     const alternar = () => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -40,15 +31,12 @@ export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) 
             audio.pause();
         }
     };
-
     const moverA = (e) => {
         const audio = audioRef.current;
         if (audio) audio.currentTime = Number(e.target.value);
     };
-
     return (
         <div className="reproductor">
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <audio
                 ref={audioRef}
                 preload="auto"
@@ -59,13 +47,11 @@ export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) 
                 onEnded={() => (siguiente ? onCambiarPista(siguiente) : setSonando(false))}
                 onError={() => setError('No se pudo cargar este audio. El enlace puede haber expirado.')}
             />
-
             <div className="reproductor-inner">
                 <div className="reproductor-info">
                     <div className="titulo-cancion">{pista.titulo}</div>
                     <div className="sub">{pista.artista} · fragmento de 30 s</div>
                 </div>
-
                 <div className="controles">
                     <button className="btn-icono" disabled={!anterior} onClick={() => onCambiarPista(anterior)} aria-label="Anterior">⏮</button>
                     <button className="btn-icono btn-principal" onClick={alternar} aria-label={sonando ? 'Pausar' : 'Reproducir'}>
@@ -74,7 +60,6 @@ export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) 
                     <button className="btn-icono" disabled={!siguiente} onClick={() => onCambiarPista(siguiente)} aria-label="Siguiente">⏭</button>
                     <button className="btn-icono" onClick={onCerrar} aria-label="Cerrar reproductor">✕</button>
                 </div>
-
                 <div className="progreso">
                     <span>{formatoTiempo(tiempo)}</span>
                     <input
@@ -88,7 +73,6 @@ export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) 
                     />
                     <span>{formatoTiempo(duracion)}</span>
                 </div>
-
                 {error && <div className="aviso-error" style={{ width: '100%', margin: 0 }}>{error}</div>}
             </div>
         </div>
