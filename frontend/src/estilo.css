@@ -1,4 +1,3 @@
-/* Estilo de la app: oscuro, sobrio, un solo color de acento. */
 :root {
   --fondo: #0b0b0c;
   --superficie: #141416;
@@ -10,12 +9,8 @@
   --acento-hover: #be123c;
   --radio: 10px;
 }
-
 * { box-sizing: border-box; }
-
 .app { min-height: 100vh; background: var(--fondo); color: var(--texto); }
-
-/* ---------- barra superior ---------- */
 .barra {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 24px; border-bottom: 1px solid var(--borde);
@@ -23,8 +18,6 @@
 }
 .marca { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 1.05rem; letter-spacing: -0.01em; }
 .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--acento); }
-
-/* ---------- contenedor y bloques ---------- */
 .contenedor { max-width: 900px; margin: 0 auto; padding: 32px 20px 120px; }
 .bloque { margin-bottom: 40px; }
 .titulo-seccion { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--suave); margin: 0 0 14px; display: flex; gap: 8px; align-items: center; }
@@ -37,8 +30,6 @@
 .alta-manual[open] summary::before { content: '– '; }
 .muted { color: var(--suave); }
 .vacio { padding: 32px 0; text-align: center; }
-
-/* ---------- formularios ---------- */
 .input {
   width: 100%; padding: 12px 14px; border-radius: var(--radio);
   background: var(--superficie); border: 1px solid var(--borde); color: var(--texto);
@@ -47,31 +38,22 @@
 .input::placeholder { color: #5c5c66; }
 .input:focus { border-color: var(--acento); }
 .buscador { font-size: 1rem; padding: 14px 16px; }
-
 .tarjeta { background: var(--superficie); border: 1px solid var(--borde); border-radius: 14px; padding: 20px; }
 .campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
 .campo { display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem; color: var(--suave); }
 .acciones-form { display: flex; gap: 8px; justify-content: flex-end; }
-
 .aviso-error { background: rgba(225, 29, 72, 0.1); border: 1px solid rgba(225, 29, 72, 0.4); color: #fda4af; padding: 10px 12px; border-radius: var(--radio); font-size: 0.9rem; margin-bottom: 14px; }
-
-/* ---------- botones ---------- */
 button { font: inherit; cursor: pointer; }
 button:disabled { opacity: 0.5; cursor: default; }
-
 .btn-primario { background: var(--acento); color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-weight: 500; font-size: 0.9rem; transition: background 0.15s; }
 .btn-primario:hover:not(:disabled) { background: var(--acento-hover); }
 .btn-primario-sm { padding: 7px 14px; font-size: 0.85rem; }
 .ancho { width: 100%; }
-
 .btn-fantasma { background: transparent; color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 7px 14px; font-size: 0.85rem; transition: border-color 0.15s, color 0.15s; }
 .btn-fantasma:hover:not(:disabled) { border-color: #3d3d45; }
 .btn-fantasma.peligro:hover:not(:disabled) { color: #fb7185; border-color: rgba(225, 29, 72, 0.5); }
-
 .btn-icono { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--borde); background: var(--superficie-2); color: var(--texto); display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; }
 .btn-icono:hover:not(:disabled) { border-color: var(--acento); color: var(--acento); }
-
-/* ---------- listas de canciones ---------- */
 .lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--borde); }
 .fila { display: flex; align-items: center; gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--borde); }
 .portada { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; background: var(--superficie-2); flex-shrink: 0; }
@@ -79,8 +61,6 @@ button:disabled { opacity: 0.5; cursor: default; }
 .titulo-cancion { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sub { font-size: 0.85rem; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acciones { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
-
-/* ---------- reproductor ---------- */
 .reproductor { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(20, 20, 22, 0.96); backdrop-filter: blur(8px); border-top: 1px solid var(--borde); padding: 12px 20px; z-index: 20; }
 .reproductor-inner { max-width: 900px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
 .reproductor-info { flex: 1; min-width: 160px; }
@@ -90,12 +70,9 @@ button:disabled { opacity: 0.5; cursor: default; }
 .controles .btn-principal:hover:not(:disabled) { background: #fff; color: var(--fondo); border-color: #fff; }
 .progreso { display: flex; align-items: center; gap: 10px; width: 100%; font-size: 0.75rem; color: var(--suave); font-variant-numeric: tabular-nums; }
 .progreso input[type="range"] { flex: 1; accent-color: var(--acento); }
-
-/* ---------- login ---------- */
 .login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--fondo); color: var(--texto); }
 .login-tarjeta { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 14px; padding: 28px; }
 .login-titulo { font-size: 1.4rem; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
-
 @media (max-width: 600px) {
   .barra { padding: 14px 16px; }
   .contenedor { padding: 24px 16px 140px; }

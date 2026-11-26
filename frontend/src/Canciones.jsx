@@ -1,43 +1,29 @@
 import { useState, useEffect } from 'react';
 import { apiFetch, mensajeDeError } from './api';
 import Reproductor from './Reproductor';
-
 const FORM_VACIO = { titulo: '', artista: '', genero: '', anio_lanzamiento: '' };
-
 export default function Canciones({ token, onSesionExpirada }) {
     const [canciones, setCanciones] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState('');
-
-    // edición (las canciones solo se crean desde el buscador de Deezer)
     const [form, setForm] = useState(FORM_VACIO);
     const [editandoId, setEditandoId] = useState(null);
     const [guardando, setGuardando] = useState(false);
     const [errorForm, setErrorForm] = useState('');
-
-    // buscador (consulta nuestra API /api/buscar/, que consulta Deezer)
     const [busqueda, setBusqueda] = useState('');
     const [resultados, setResultados] = useState([]);
     const [buscando, setBuscando] = useState(false);
-    const [siguiente, setSiguiente] = useState(0); // índice de Deezer para la página siguiente
+    const [siguiente, setSiguiente] = useState(0);
     const [hayMas, setHayMas] = useState(false);
     const [cargandoMas, setCargandoMas] = useState(false);
-
-    // alta manual: plegada en "Agregar manualmente" (la pauta pide creación mediante formulario)
     const [nueva, setNueva] = useState(FORM_VACIO);
     const [guardandoNueva, setGuardandoNueva] = useState(false);
     const [errorNueva, setErrorNueva] = useState('');
-
-    // canción que suena en el reproductor (null = cerrado)
     const [pista, setPista] = useState(null);
-
-    // 401 = token invalido/expirado -> volver al login. Otros errores -> mensaje.
     const manejarError = (err, mostrar) => {
         if (err.status === 401) { onSesionExpirada(); return; }
         mostrar(mensajeDeError(err));
     };
-
-    // ---------- READ ----------
     const cargarCanciones = async () => {
         try {
             const data = await apiFetch('/canciones/', { token });
@@ -50,10 +36,7 @@ export default function Canciones({ token, onSesionExpirada }) {
         }
     };
     useEffect(() => { cargarCanciones(); }, []);
-
-    // ---------- UPDATE (PUT) ----------
     const cambiarCampo = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-
     const empezarEdicion = (c) => {
         setForm({
             titulo: c.titulo,
@@ -65,13 +48,11 @@ export default function Canciones({ token, onSesionExpirada }) {
         setErrorForm('');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
-
     const cancelarEdicion = () => {
         setForm(FORM_VACIO);
         setEditandoId(null);
         setErrorForm('');
     };
-
     const guardarEdicion = async (e) => {
         e.preventDefault();
         setGuardando(true);
@@ -90,8 +71,6 @@ export default function Canciones({ token, onSesionExpirada }) {
             setGuardando(false);
         }
     };
-
-    // ---------- DELETE ----------
     const eliminarCancion = async (id) => {
         if (!window.confirm('¿Seguro que deseas eliminar esta canción?')) return;
         try {
@@ -103,8 +82,6 @@ export default function Canciones({ token, onSesionExpirada }) {
             manejarError(err, setError);
         }
     };
-
-    // ---------- Buscador (Deezer vía nuestra API), con espera de 300 ms ----------
     useEffect(() => {
         const q = busqueda.trim();
         if (q.length < 2) { setResultados([]); setHayMas(false); setBuscando(false); return; }
@@ -126,16 +103,12 @@ export default function Canciones({ token, onSesionExpirada }) {
         }, 300);
         return () => { cancelado = true; clearTimeout(timer); };
     }, [busqueda, token]);
-
-    // ¿Ya está en la biblioteca? Compara título y artista sin importar mayúsculas.
     const esDuplicada = (titulo, artista) =>
         canciones.some(
             (c) =>
                 c.titulo.trim().toLowerCase() === titulo.trim().toLowerCase() &&
                 c.artista.trim().toLowerCase() === artista.trim().toLowerCase(),
         );
-
-    // Trae la siguiente página de resultados y la agrega al final de la lista.
     const cargarMas = async () => {
         setCargandoMas(true);
         try {
@@ -152,8 +125,6 @@ export default function Canciones({ token, onSesionExpirada }) {
             setCargandoMas(false);
         }
     };
-
-    // Guarda en la base de datos un resultado de Deezer (con su preview y portada).
     const agregarDesdeDeezer = async (track) => {
         if (esDuplicada(track.titulo, track.artista)) {
             window.alert('Ya tienes esta canción en tu biblioteca.');
@@ -169,7 +140,6 @@ export default function Canciones({ token, onSesionExpirada }) {
         };
         try {
             await apiFetch('/canciones/', { method: 'POST', token, body: nueva });
-            // Quita solo la canción agregada; la búsqueda y las demás se mantienen.
             setResultados((prev) => prev.filter((r) => r !== track));
             setError('');
             await cargarCanciones();
@@ -177,10 +147,7 @@ export default function Canciones({ token, onSesionExpirada }) {
             manejarError(err, setError);
         }
     };
-
-    // ---------- CREATE manual (POST) ----------
     const cambiarNueva = (e) => setNueva({ ...nueva, [e.target.name]: e.target.value });
-
     const crearManual = async (e) => {
         e.preventDefault();
         if (esDuplicada(nueva.titulo, nueva.artista)) {
@@ -203,14 +170,10 @@ export default function Canciones({ token, onSesionExpirada }) {
             setGuardandoNueva(false);
         }
     };
-
     const reproducibles = canciones.filter((c) => c.preview_url);
-
     return (
         <div className={pista ? 'pb-espacio' : ''}>
             {error && <div className="aviso-error">{error}</div>}
-
-            {/* Buscador */}
             <section className="bloque">
                 <h2 className="titulo-seccion">Buscar en Deezer</h2>
                 <input
@@ -220,9 +183,7 @@ export default function Canciones({ token, onSesionExpirada }) {
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                 />
-
                 {buscando && <p className="muted" style={{ margin: '14px 0 0' }}>Buscando…</p>}
-
                 {resultados.length > 0 && (
                     <ul className="lista" style={{ marginTop: 14 }}>
                         {resultados.map((item, i) => (
@@ -242,7 +203,6 @@ export default function Canciones({ token, onSesionExpirada }) {
                         ))}
                     </ul>
                 )}
-
                 {hayMas && (
                     <div className="cargar-mas">
                         <button className="btn-fantasma" onClick={cargarMas} disabled={cargandoMas}>
@@ -251,8 +211,6 @@ export default function Canciones({ token, onSesionExpirada }) {
                     </div>
                 )}
             </section>
-
-            {/* Alta manual, plegada para no competir con el buscador */}
             <details className="bloque alta-manual">
                 <summary className="muted">Agregar manualmente</summary>
                 <form className="tarjeta" onSubmit={crearManual} style={{ marginTop: 14 }}>
@@ -278,8 +236,6 @@ export default function Canciones({ token, onSesionExpirada }) {
                     </div>
                 </form>
             </details>
-
-            {/* Edición (solo aparece al presionar "Editar") */}
             {editandoId && (
                 <form className="tarjeta bloque" onSubmit={guardarEdicion}>
                     <h2 className="titulo-seccion" style={{ marginBottom: 16 }}>Editar canción</h2>
@@ -306,13 +262,10 @@ export default function Canciones({ token, onSesionExpirada }) {
                     </div>
                 </form>
             )}
-
-            {/* Biblioteca */}
             <section className="bloque">
                 <h2 className="titulo-seccion">
                     Mi biblioteca <span>{canciones.length}</span>
                 </h2>
-
                 {cargando ? (
                     <p className="muted vacio">Cargando…</p>
                 ) : canciones.length === 0 ? (
@@ -338,7 +291,6 @@ export default function Canciones({ token, onSesionExpirada }) {
                     </ul>
                 )}
             </section>
-
             {pista && (
                 <Reproductor
                     pista={pista}
