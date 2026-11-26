@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 
-const FUENTE = '"Times New Roman", Times, serif';
-
 const formatoTiempo = (seg) => {
     if (!Number.isFinite(seg) || seg < 0) return '0:00';
     const m = Math.floor(seg / 60);
@@ -10,7 +8,7 @@ const formatoTiempo = (seg) => {
 };
 
 // Reproductor fijo abajo. Recibe la pista actual y la lista de canciones reproducibles
-// (las que tienen preview_url) para poder pasar a la anterior / siguiente.
+// (las que tienen preview_url) para pasar a la anterior / siguiente.
 export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) {
     const audioRef = useRef(null);
     const [sonando, setSonando] = useState(false);
@@ -23,7 +21,7 @@ export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) 
     const siguiente = idx >= 0 && idx < lista.length - 1 ? lista[idx + 1] : null;
 
     // Cada vez que cambia la pista: cargar el audio y reproducirlo.
-    // El navegador puede bloquear el autoplay; en ese caso el usuario presiona ▶.
+    // Si el navegador bloquea el autoplay, el usuario presiona ▶.
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -49,10 +47,7 @@ export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) 
     };
 
     return (
-        <div
-            className="fixed-bottom border-top border-danger px-3 py-2"
-            style={{ backgroundColor: '#050505', color: '#fff', fontFamily: FUENTE }}
-        >
+        <div className="reproductor">
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <audio
                 ref={audioRef}
@@ -62,66 +57,39 @@ export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) 
                 onTimeUpdate={(e) => setTiempo(e.target.currentTime)}
                 onLoadedMetadata={(e) => setDuracion(e.target.duration)}
                 onEnded={() => (siguiente ? onCambiarPista(siguiente) : setSonando(false))}
-                onError={() => setError('No se pudo cargar este audio. Puede que el enlace haya expirado.')}
+                onError={() => setError('No se pudo cargar este audio. El enlace puede haber expirado.')}
             />
 
-            <div className="container d-flex flex-wrap align-items-center gap-3" style={{ maxWidth: '1100px' }}>
-                <div className="flex-grow-1" style={{ minWidth: '160px' }}>
-                    <div className="fw-bold text-truncate">{pista.titulo}</div>
-                    <div className="small opacity-75 text-truncate">
-                        {pista.artista} · fragmento de 30 s
-                    </div>
+            <div className="reproductor-inner">
+                <div className="reproductor-info">
+                    <div className="titulo-cancion">{pista.titulo}</div>
+                    <div className="sub">{pista.artista} · fragmento de 30 s</div>
                 </div>
 
-                <div className="d-flex gap-2">
-                    <button
-                        className="btn btn-sm btn-outline-light"
-                        disabled={!anterior}
-                        onClick={() => onCambiarPista(anterior)}
-                        aria-label="Canción anterior"
-                    >
-                        ⏮
+                <div className="controles">
+                    <button className="btn-icono" disabled={!anterior} onClick={() => onCambiarPista(anterior)} aria-label="Anterior">⏮</button>
+                    <button className="btn-icono btn-principal" onClick={alternar} aria-label={sonando ? 'Pausar' : 'Reproducir'}>
+                        {sonando ? '❚❚' : '▶'}
                     </button>
-                    <button
-                        className="btn btn-sm btn-danger px-3"
-                        onClick={alternar}
-                        aria-label={sonando ? 'Pausar' : 'Reproducir'}
-                    >
-                        {sonando ? '⏸' : '▶'}
-                    </button>
-                    <button
-                        className="btn btn-sm btn-outline-light"
-                        disabled={!siguiente}
-                        onClick={() => onCambiarPista(siguiente)}
-                        aria-label="Canción siguiente"
-                    >
-                        ⏭
-                    </button>
-                    <button
-                        className="btn btn-sm btn-outline-secondary"
-                        onClick={onCerrar}
-                        aria-label="Cerrar reproductor"
-                    >
-                        ✕
-                    </button>
+                    <button className="btn-icono" disabled={!siguiente} onClick={() => onCambiarPista(siguiente)} aria-label="Siguiente">⏭</button>
+                    <button className="btn-icono" onClick={onCerrar} aria-label="Cerrar reproductor">✕</button>
                 </div>
 
-                <div className="d-flex align-items-center gap-2 w-100">
-                    <span className="small" style={{ minWidth: '38px' }}>{formatoTiempo(tiempo)}</span>
+                <div className="progreso">
+                    <span>{formatoTiempo(tiempo)}</span>
                     <input
                         type="range"
-                        className="form-range flex-grow-1"
                         min={0}
                         max={Number.isFinite(duracion) ? duracion : 0}
                         step={0.1}
                         value={tiempo}
                         onChange={moverA}
-                        aria-label="Progreso de la canción"
+                        aria-label="Progreso"
                     />
-                    <span className="small" style={{ minWidth: '38px' }}>{formatoTiempo(duracion)}</span>
+                    <span>{formatoTiempo(duracion)}</span>
                 </div>
 
-                {error && <div className="small text-danger w-100">{error}</div>}
+                {error && <div className="aviso-error" style={{ width: '100%', margin: 0 }}>{error}</div>}
             </div>
         </div>
     );
