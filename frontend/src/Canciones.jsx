@@ -2,33 +2,26 @@ import { useState, useEffect } from 'react';
 import { apiFetch, mensajeDeError } from './api';
 import Reproductor from './Reproductor';
 
+const FUENTE = '"Times New Roman", Times, serif';
 const FORM_VACIO = { titulo: '', artista: '', genero: '', anio_lanzamiento: '' };
+const estiloInput = { backgroundColor: '#000', color: '#fff', fontFamily: FUENTE };
 
 export default function Canciones({ token, onSesionExpirada }) {
     const [canciones, setCanciones] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState('');
 
-    // edición (las canciones solo se crean desde el buscador de Deezer)
+    // formulario de crear / editar
     const [form, setForm] = useState(FORM_VACIO);
-    const [editandoId, setEditandoId] = useState(null);
+    const [editandoId, setEditandoId] = useState(null); // null = creando
     const [guardando, setGuardando] = useState(false);
     const [errorForm, setErrorForm] = useState('');
 
     // buscador (consulta nuestra API /api/buscar/, que consulta Deezer)
     const [busqueda, setBusqueda] = useState('');
-    const [resultados, setResultados] = useState([]);
-    const [buscando, setBuscando] = useState(false);
-    const [siguiente, setSiguiente] = useState(0); // índice de Deezer para la página siguiente
-    const [hayMas, setHayMas] = useState(false);
-    const [cargandoMas, setCargandoMas] = useState(false);
+    const [resultadosApi, setResultadosApi] = useState([]);
 
-    // alta manual: plegada en "Agregar manualmente" (la pauta pide creación mediante formulario)
-    const [nueva, setNueva] = useState(FORM_VACIO);
-    const [guardandoNueva, setGuardandoNueva] = useState(false);
-    const [errorNueva, setErrorNueva] = useState('');
-
-    // canción que suena en el reproductor (null = cerrado)
+    // canción que suena en el reproductor (null = reproductor cerrado)
     const [pista, setPista] = useState(null);
 
     // 401 = token invalido/expirado -> volver al login. Otros errores -> mensaje.
@@ -37,7 +30,7 @@ export default function Canciones({ token, onSesionExpirada }) {
         mostrar(mensajeDeError(err));
     };
 
-    // ---------- READ ----------
+    // ---------- READ (GET /api/canciones/) ----------
     const cargarCanciones = async () => {
         try {
             const data = await apiFetch('/canciones/', { token });
@@ -51,8 +44,14 @@ export default function Canciones({ token, onSesionExpirada }) {
     };
     useEffect(() => { cargarCanciones(); }, []);
 
-    // ---------- UPDATE (PUT) ----------
+    // ---------- CREATE (POST) y UPDATE (PUT) desde el formulario ----------
     const cambiarCampo = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+    const cancelarEdicion = () => {
+        setForm(FORM_VACIO);
+        setEditandoId(null);
+        setErrorForm('');
+    };
 
     const empezarEdicion = (c) => {
         setForm({
@@ -66,13 +65,7 @@ export default function Canciones({ token, onSesionExpirada }) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const cancelarEdicion = () => {
-        setForm(FORM_VACIO);
-        setEditandoId(null);
-        setErrorForm('');
-    };
-
-    const guardarEdicion = async (e) => {
+    const guardar = async (e) => {
         e.preventDefault();
         setGuardando(true);
         setErrorForm('');
@@ -81,11 +74,15 @@ export default function Canciones({ token, onSesionExpirada }) {
             anio_lanzamiento: form.anio_lanzamiento === '' ? null : Number(form.anio_lanzamiento),
         };
         try {
-            await apiFetch(`/canciones/${editandoId}/`, { method: 'PUT', token, body: payload });
+            if (editandoId) {
+                await apiFetch(`/canciones/${editandoId}/`, { method: 'PUT', token, body: payload });
+            } else {
+                await apiFetch('/canciones/', { method: 'POST', token, body: payload });
+            }
             cancelarEdicion();
-            await cargarCanciones();
+            await cargarCanciones(); // la lista se actualiza sin recargar la pagina
         } catch (err) {
-            manejarError(err, setErrorForm);
+            manejarError(err, setErrorForm); // ej: 400 del backend con el detalle de validacion
         } finally {
             setGuardando(false);
         }
@@ -104,61 +101,24 @@ export default function Canciones({ token, onSesionExpirada }) {
         }
     };
 
-    // ---------- Buscador (Deezer vía nuestra API), con espera de 300 ms ----------
+    // ---------- Buscador (con espera de 300 ms) ----------
     useEffect(() => {
         const q = busqueda.trim();
-        if (q.length < 2) { setResultados([]); setHayMas(false); setBuscando(false); return; }
+        if (q.length < 2) { setResultadosApi([]); return; }
         let cancelado = false;
-        setBuscando(true);
         const timer = setTimeout(async () => {
             try {
                 const data = await apiFetch(`/buscar/?q=${encodeURIComponent(q)}`, { token });
-                if (!cancelado) {
-                    setResultados(data.resultados);
-                    setSiguiente(data.siguiente);
-                    setHayMas(data.hay_mas);
-                }
+                if (!cancelado) setResultadosApi(data);
             } catch (err) {
                 if (!cancelado) manejarError(err, setError);
-            } finally {
-                if (!cancelado) setBuscando(false);
             }
         }, 300);
         return () => { cancelado = true; clearTimeout(timer); };
     }, [busqueda, token]);
 
-    // ¿Ya está en la biblioteca? Compara título y artista sin importar mayúsculas.
-    const esDuplicada = (titulo, artista) =>
-        canciones.some(
-            (c) =>
-                c.titulo.trim().toLowerCase() === titulo.trim().toLowerCase() &&
-                c.artista.trim().toLowerCase() === artista.trim().toLowerCase(),
-        );
-
-    // Trae la siguiente página de resultados y la agrega al final de la lista.
-    const cargarMas = async () => {
-        setCargandoMas(true);
-        try {
-            const data = await apiFetch(
-                `/buscar/?q=${encodeURIComponent(busqueda.trim())}&index=${siguiente}`,
-                { token },
-            );
-            setResultados((prev) => [...prev, ...data.resultados]);
-            setSiguiente(data.siguiente);
-            setHayMas(data.hay_mas);
-        } catch (err) {
-            manejarError(err, setError);
-        } finally {
-            setCargandoMas(false);
-        }
-    };
-
-    // Guarda en la base de datos un resultado de Deezer (con su preview y portada).
-    const agregarDesdeDeezer = async (track) => {
-        if (esDuplicada(track.titulo, track.artista)) {
-            window.alert('Ya tienes esta canción en tu biblioteca.');
-            return;
-        }
+    // Guarda en nuestra base de datos el resultado de la búsqueda (incluye preview_url y portada).
+    const importarDesdeApi = async (track) => {
         const nueva = {
             titulo: track.titulo,
             artista: track.artista,
@@ -169,8 +129,8 @@ export default function Canciones({ token, onSesionExpirada }) {
         };
         try {
             await apiFetch('/canciones/', { method: 'POST', token, body: nueva });
-            // Quita solo la canción agregada; la búsqueda y las demás se mantienen.
-            setResultados((prev) => prev.filter((r) => r !== track));
+            setBusqueda('');
+            setResultadosApi([]);
             setError('');
             await cargarCanciones();
         } catch (err) {
@@ -178,166 +138,125 @@ export default function Canciones({ token, onSesionExpirada }) {
         }
     };
 
-    // ---------- CREATE manual (POST) ----------
-    const cambiarNueva = (e) => setNueva({ ...nueva, [e.target.name]: e.target.value });
-
-    const crearManual = async (e) => {
-        e.preventDefault();
-        if (esDuplicada(nueva.titulo, nueva.artista)) {
-            window.alert('Ya tienes esta canción en tu biblioteca.');
-            return;
-        }
-        setGuardandoNueva(true);
-        setErrorNueva('');
-        const payload = {
-            ...nueva,
-            anio_lanzamiento: nueva.anio_lanzamiento === '' ? null : Number(nueva.anio_lanzamiento),
-        };
-        try {
-            await apiFetch('/canciones/', { method: 'POST', token, body: payload });
-            setNueva(FORM_VACIO);
-            await cargarCanciones();
-        } catch (err) {
-            manejarError(err, setErrorNueva);
-        } finally {
-            setGuardandoNueva(false);
-        }
-    };
-
+    // Solo canciones con fragmento de audio pueden sonar en el reproductor.
     const reproducibles = canciones.filter((c) => c.preview_url);
 
     return (
-        <div className={pista ? 'pb-espacio' : ''}>
-            {error && <div className="aviso-error">{error}</div>}
+        <div className={`py-2 ${pista ? 'pb-5' : ''}`} style={{ color: '#fff', fontFamily: FUENTE, letterSpacing: '0.3px' }}>
+            {error && <div className="alert alert-danger py-2 mb-4">{error}</div>}
 
-            {/* Buscador */}
-            <section className="bloque">
-                <h2 className="titulo-seccion">Buscar en Deezer</h2>
-                <input
-                    className="input buscador"
-                    type="text"
-                    placeholder="Nombre de una canción o artista"
-                    value={busqueda}
-                    onChange={(e) => setBusqueda(e.target.value)}
-                />
-
-                {buscando && <p className="muted" style={{ margin: '14px 0 0' }}>Buscando…</p>}
-
-                {resultados.length > 0 && (
-                    <ul className="lista" style={{ marginTop: 14 }}>
-                        {resultados.map((item, i) => (
-                            <li className="fila" key={i}>
-                                {item.portada && <img className="portada" src={item.portada} alt="" />}
-                                <div className="info">
-                                    <div className="titulo-cancion">{item.titulo}</div>
-                                    <div className="sub">{item.artista} · {item.anio_lanzamiento} · {item.genero}</div>
-                                </div>
-                                <div className="acciones">
-                                    {item.preview_url && (
-                                        <button className="btn-fantasma" onClick={() => setPista(item)}>Escuchar</button>
-                                    )}
-                                    <button className="btn-primario btn-primario-sm" onClick={() => agregarDesdeDeezer(item)}>Agregar</button>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-
-                {hayMas && (
-                    <div className="cargar-mas">
-                        <button className="btn-fantasma" onClick={cargarMas} disabled={cargandoMas}>
-                            {cargandoMas ? 'Cargando…' : 'Cargar más'}
-                        </button>
+            {/* Formulario crear / editar */}
+            <div className="p-4 mb-4 rounded border border-secondary" style={{ backgroundColor: '#0a0a0a' }}>
+                <h5 className="mb-3 text-uppercase fw-bold text-white" style={{ fontSize: '0.85rem', letterSpacing: '2px' }}>
+                    {editandoId ? 'Editar canción' : 'Agregar canción'}
+                </h5>
+                {errorForm && <div className="alert alert-danger py-2">{errorForm}</div>}
+                {/* Sin min/max a proposito: la validacion la hace el backend y aqui se muestra su error. */}
+                <form onSubmit={guardar} className="row g-2">
+                    <div className="col-md-3">
+                        <input type="text" name="titulo" className="form-control border-secondary shadow-none" style={estiloInput} placeholder="Título" value={form.titulo} onChange={cambiarCampo} maxLength={200} required />
                     </div>
-                )}
-            </section>
-
-            {/* Alta manual, plegada para no competir con el buscador */}
-            <details className="bloque alta-manual">
-                <summary className="muted">Agregar manualmente</summary>
-                <form className="tarjeta" onSubmit={crearManual} style={{ marginTop: 14 }}>
-                    {errorNueva && <div className="aviso-error">{errorNueva}</div>}
-                    <div className="campos">
-                        <label className="campo">Título
-                            <input className="input" type="text" name="titulo" value={nueva.titulo} onChange={cambiarNueva} maxLength={200} required />
-                        </label>
-                        <label className="campo">Artista
-                            <input className="input" type="text" name="artista" value={nueva.artista} onChange={cambiarNueva} maxLength={200} required />
-                        </label>
-                        <label className="campo">Género
-                            <input className="input" type="text" name="genero" value={nueva.genero} onChange={cambiarNueva} maxLength={100} required />
-                        </label>
-                        <label className="campo">Año
-                            <input className="input" type="number" name="anio_lanzamiento" value={nueva.anio_lanzamiento} onChange={cambiarNueva} required />
-                        </label>
+                    <div className="col-md-3">
+                        <input type="text" name="artista" className="form-control border-secondary shadow-none" style={estiloInput} placeholder="Artista" value={form.artista} onChange={cambiarCampo} maxLength={200} required />
                     </div>
-                    <div className="acciones-form">
-                        <button type="submit" className="btn-primario" disabled={guardandoNueva}>
-                            {guardandoNueva ? 'Guardando…' : 'Agregar'}
+                    <div className="col-md-3">
+                        <input type="text" name="genero" className="form-control border-secondary shadow-none" style={estiloInput} placeholder="Género" value={form.genero} onChange={cambiarCampo} maxLength={100} required />
+                    </div>
+                    <div className="col-md-3">
+                        <input type="number" name="anio_lanzamiento" className="form-control border-secondary shadow-none" style={estiloInput} placeholder="Año" value={form.anio_lanzamiento} onChange={cambiarCampo} required />
+                    </div>
+                    <div className="col-12 d-flex gap-2 mt-2">
+                        <button type="submit" className="btn btn-danger px-4 fw-semibold text-uppercase" style={{ fontSize: '0.8rem', letterSpacing: '1px' }} disabled={guardando}>
+                            {guardando ? 'Guardando...' : (editandoId ? 'Guardar cambios' : 'Agregar')}
                         </button>
+                        {editandoId && (
+                            <button type="button" className="btn btn-outline-light px-4 text-uppercase" style={{ fontSize: '0.8rem', letterSpacing: '1px' }} onClick={cancelarEdicion}>
+                                Cancelar
+                            </button>
+                        )}
                     </div>
                 </form>
-            </details>
+            </div>
 
-            {/* Edición (solo aparece al presionar "Editar") */}
-            {editandoId && (
-                <form className="tarjeta bloque" onSubmit={guardarEdicion}>
-                    <h2 className="titulo-seccion" style={{ marginBottom: 16 }}>Editar canción</h2>
-                    {errorForm && <div className="aviso-error">{errorForm}</div>}
-                    <div className="campos">
-                        <label className="campo">Título
-                            <input className="input" type="text" name="titulo" value={form.titulo} onChange={cambiarCampo} maxLength={200} required />
-                        </label>
-                        <label className="campo">Artista
-                            <input className="input" type="text" name="artista" value={form.artista} onChange={cambiarCampo} maxLength={200} required />
-                        </label>
-                        <label className="campo">Género
-                            <input className="input" type="text" name="genero" value={form.genero} onChange={cambiarCampo} maxLength={100} required />
-                        </label>
-                        <label className="campo">Año
-                            <input className="input" type="number" name="anio_lanzamiento" value={form.anio_lanzamiento} onChange={cambiarCampo} required />
-                        </label>
+            {/* Buscador (Deezer, a través de nuestra API) */}
+            <div className="p-4 mb-4 rounded border border-secondary" style={{ backgroundColor: '#0a0a0a' }}>
+                <h5 className="mb-3 text-uppercase fw-bold text-white" style={{ fontSize: '0.85rem', letterSpacing: '2px' }}>Buscador</h5>
+                <input type="text" className="form-control text-white border-secondary shadow-none" style={{ ...estiloInput, padding: '12px' }} placeholder="Escribe el nombre de una canción o artista..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+                {resultadosApi.length > 0 && (
+                    <div className="table-responsive rounded border border-secondary mt-3" style={{ backgroundColor: '#000' }}>
+                        <table className="table table-dark table-hover align-middle mb-0" style={{ backgroundColor: 'transparent' }}>
+                            <tbody>
+                                {resultadosApi.map((item, index) => (
+                                    <tr key={index} style={{ borderBottomColor: '#222' }}>
+                                        <td className="py-3" style={{ width: '64px' }}>
+                                            {item.portada && <img src={item.portada} alt="" width="48" height="48" className="rounded" />}
+                                        </td>
+                                        <td className="py-3">
+                                            <div className="fw-bold text-white" style={{ fontSize: '1.05rem' }}>{item.titulo}</div>
+                                            <div className="text-light opacity-75 small">{item.artista} · {item.anio_lanzamiento} · {item.genero}</div>
+                                        </td>
+                                        <td className="text-end py-3">
+                                            {item.preview_url && (
+                                                <button className="btn btn-sm btn-outline-light me-2 border-secondary" style={{ fontSize: '0.8rem' }} onClick={() => setPista(item)}>▶ Escuchar</button>
+                                            )}
+                                            <button className="btn btn-sm btn-danger px-3 text-white fw-semibold" style={{ fontSize: '0.8rem' }} onClick={() => importarDesdeApi(item)}>Agregar</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                    <div className="acciones-form">
-                        <button type="button" className="btn-fantasma" onClick={cancelarEdicion}>Cancelar</button>
-                        <button type="submit" className="btn-primario" disabled={guardando}>
-                            {guardando ? 'Guardando…' : 'Guardar cambios'}
-                        </button>
-                    </div>
-                </form>
-            )}
-
-            {/* Biblioteca */}
-            <section className="bloque">
-                <h2 className="titulo-seccion">
-                    Mi biblioteca <span>{canciones.length}</span>
-                </h2>
-
-                {cargando ? (
-                    <p className="muted vacio">Cargando…</p>
-                ) : canciones.length === 0 ? (
-                    <p className="muted vacio">Aún no hay canciones. Búscalas arriba para agregarlas.</p>
-                ) : (
-                    <ul className="lista">
-                        {canciones.map((c) => (
-                            <li className="fila" key={c.id}>
-                                {c.portada && <img className="portada" src={c.portada} alt="" />}
-                                <div className="info">
-                                    <div className="titulo-cancion">{c.titulo}</div>
-                                    <div className="sub">{c.artista} · {c.anio_lanzamiento} · {c.genero}</div>
-                                </div>
-                                <div className="acciones">
-                                    {c.preview_url && (
-                                        <button className="btn-icono" aria-label={`Reproducir ${c.titulo}`} onClick={() => setPista(c)}>▶</button>
-                                    )}
-                                    <button className="btn-fantasma" onClick={() => empezarEdicion(c)}>Editar</button>
-                                    <button className="btn-fantasma peligro" onClick={() => eliminarCancion(c.id)}>Eliminar</button>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
                 )}
-            </section>
+            </div>
+
+            {/* Listado */}
+            <h5 className="mb-3 text-uppercase fw-bold text-white" style={{ fontSize: '0.85rem', letterSpacing: '2px' }}>Tu Repositorio</h5>
+            <div className="table-responsive rounded border border-secondary" style={{ backgroundColor: '#0a0a0a' }}>
+                <table className="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                        <tr className="text-white small text-uppercase" style={{ borderBottom: '1px solid #333', backgroundColor: '#111', letterSpacing: '1px' }}>
+                            <th className="py-3 ps-3 text-white">Título</th>
+                            <th className="py-3 text-white">Artista</th>
+                            <th className="py-3 text-white">Género</th>
+                            <th className="py-3 text-white">Año</th>
+                            <th className="py-3 text-center text-white">Enlaces</th>
+                            <th className="py-3 text-center pe-3 text-white">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {cargando ? (
+                            <tr><td colSpan="6" className="text-center py-5 text-light opacity-75">Cargando canciones...</td></tr>
+                        ) : canciones.length === 0 ? (
+                            <tr><td colSpan="6" className="text-center py-5 text-light opacity-75">No hay canciones registradas.</td></tr>
+                        ) : (
+                            canciones.map((c) => {
+                                const q = encodeURIComponent(`${c.titulo} ${c.artista}`);
+                                const linkYt = `https://www.youtube.com/results?search_query=${q}`;
+                                const linkApple = `https://music.apple.com/us/search?term=${q}`;
+                                return (
+                                    <tr key={c.id} style={{ borderBottomColor: '#222' }}>
+                                        <td className="fw-semibold text-white ps-3 py-3" style={{ fontSize: '1.05rem' }}>{c.titulo}</td>
+                                        <td className="py-3 text-white">{c.artista}</td>
+                                        <td className="py-3"><span className="badge bg-dark border border-secondary text-white">{c.genero}</span></td>
+                                        <td className="py-3 text-white">{c.anio_lanzamiento}</td>
+                                        <td className="text-center py-3">
+                                            <a href={linkApple} target="_blank" rel="noreferrer" className="btn btn-sm btn-dark border-secondary text-white me-1 px-2 py-1" style={{ fontSize: '0.75rem' }}>Apple Music</a>
+                                            <a href={linkYt} target="_blank" rel="noreferrer" className="btn btn-sm btn-dark border-danger text-danger px-2 py-1" style={{ fontSize: '0.75rem' }}>YouTube</a>
+                                        </td>
+                                        <td className="text-center py-3 pe-3">
+                                            {c.preview_url && (
+                                                <button onClick={() => setPista(c)} className="btn btn-sm btn-outline-light px-3 py-1 me-2" style={{ fontSize: '0.75rem' }}>▶</button>
+                                            )}
+                                            <button onClick={() => empezarEdicion(c)} className="btn btn-sm btn-outline-light px-3 py-1 me-2" style={{ fontSize: '0.75rem' }}>Editar</button>
+                                            <button onClick={() => eliminarCancion(c.id)} className="btn btn-sm btn-outline-danger px-3 py-1 text-white" style={{ fontSize: '0.75rem' }}>Eliminar</button>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
 
             {pista && (
                 <Reproductor
