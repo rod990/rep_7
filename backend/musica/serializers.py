@@ -29,3 +29,15 @@ class CancionSerializer(serializers.ModelSerializer):
                 "El título debe tener al menos 2 caracteres."
             )
         return value
+
+    # Evita duplicados: misma canción (título + artista, sin importar mayúsculas).
+    # Al editar, se ignora la propia canción.
+    def validate(self, data):
+        titulo = data.get('titulo', getattr(self.instance, 'titulo', '')).strip()
+        artista = data.get('artista', getattr(self.instance, 'artista', '')).strip()
+        duplicadas = Cancion.objects.filter(titulo__iexact=titulo, artista__iexact=artista)
+        if self.instance is not None:
+            duplicadas = duplicadas.exclude(pk=self.instance.pk)
+        if duplicadas.exists():
+            raise serializers.ValidationError("Ya tienes esta canción en tu biblioteca.")
+        return data
