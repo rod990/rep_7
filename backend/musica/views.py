@@ -12,6 +12,7 @@ from .serializers import CancionSerializer
 
 DEEZER_API = 'https://api.deezer.com'
 TIMEOUT_SEG = 8
+POR_PAGINA = 10
 
 
 def _deezer(ruta, params=None):
@@ -42,10 +43,11 @@ class CancionViewSet(viewsets.ModelViewSet):
 
 
 class BuscarMusicaView(APIView):
-    """GET /api/buscar/?q=texto -> hasta 5 canciones de Deezer, ya normalizadas.
+    """GET /api/buscar/?q=texto&index=0 -> una página de canciones de Deezer.
 
-    La consulta se hace desde Django, no desde el navegador, así el frontend
-    solo conoce nuestra API.
+    Respuesta: {"resultados": [...], "siguiente": n, "hay_mas": bool}
+    - "siguiente" es el valor de index para pedir la página siguiente.
+    - Se omiten las canciones sin año de lanzamiento (campo obligatorio en la base).
     Errores: 400 si la búsqueda es muy corta, 502 si Deezer no responde.
     """
 
@@ -57,18 +59,24 @@ class BuscarMusicaView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            tracks = _deezer('/search', {'q': q, 'limit': 5}).get('data', [])
+            index = max(0, int(request.query_params.get('index', 0)))
+        except ValueError:
+            index = 0
+
+        try:
+            data = _deezer('/search', {'q': q, 'limit': POR_PAGINA, 'index': index})
         except (OSError, ValueError):
             return Response(
                 {'detail': 'No se pudo consultar Deezer. Intenta nuevamente.'},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
+        tracks = data.get('data', [])
         resultados = []
         for t in tracks:
             anio, genero = self._datos_album(t['album']['id'])
             if anio is None:
-                continue  # sin año no se puede guardar (campo obligatorio)
+                continue
             resultados.append({
                 'titulo': t['title'],
                 'artista': t['artist']['name'],
@@ -77,7 +85,12 @@ class BuscarMusicaView(APIView):
                 'preview_url': t.get('preview', ''),
                 'portada': t['album'].get('cover_medium', ''),
             })
-        return Response(resultados)
+
+        return Response({
+            'resultados': resultados,
+            'siguiente': index + len(tracks),
+            'hay_mas': 'next' in data,
+        })
 
     @staticmethod
     def _datos_album(album_id):
