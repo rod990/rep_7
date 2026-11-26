@@ -2,19 +2,19 @@
 
 Aplicación web para administrar un catálogo de canciones.
 
-## 1. Backend – http://127.0.0.1:8000
+## 1. Backend 
 ```bash
 cd backend
 python -m venv venv
 venv\Scripts\activate            
-# source venv/bin/activate       
+# source venv/bin/activate       #mac
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py crear_usuario   # crea el rod / 123
 python manage.py runserver
 ```
 
-## 2. Frontend  – http://localhost:5173
+## 2. Frontend 
 En otra terminal:
 ```bash
 cd frontend
