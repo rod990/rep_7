@@ -49,8 +49,11 @@ export default function Reproductor({ pista, lista, onCambiarPista, onCerrar }) 
             />
             <div className="reproductor-inner">
                 <div className="reproductor-info">
-                    <div className="titulo-cancion">{pista.titulo}</div>
-                    <div className="sub">{pista.artista} · fragmento de 30 s</div>
+                    {pista.portada && <img className="portada" src={pista.portada} alt="" />}
+                    <div className="texto-pista">
+                        <div className="titulo-cancion">{pista.titulo}</div>
+                        <div className="sub">{pista.artista} · fragmento de 30 s</div>
+                    </div>
                 </div>
                 <div className="controles">
                     <button className="btn-icono" disabled={!anterior} onClick={() => onCambiarPista(anterior)} aria-label="Anterior">⏮</button>
